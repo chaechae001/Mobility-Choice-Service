@@ -1,10 +1,10 @@
-# 차량 한 대와 사용자 조건을 입력하면, 점수와 추천 이유를 계산하는 함수
+# 차량 한 대가 사용자의 "필수 조건"을 통과하는지 확인하는 함수들
 
 def is_within_budget(vehicle, preference):
     # MongoDB의 priceFrom은 원 단위
     vehicle_price = vehicle.get("priceFrom")
 
-    # 가격 정보가 없으면 이번 단계에서는 추천 후보에서 제외
+    # 가격 정보가 없으면 추천 후보에서 제외
     if vehicle_price is None:
         return False
 
@@ -12,70 +12,116 @@ def is_within_budget(vehicle, preference):
     min_price = preference["minBudget"] * 10000
     max_price = preference["maxBudget"] * 10000
 
-    # 차량 시작 가격이 사용자 예산 범위 안에 있는지 반환
     return min_price <= vehicle_price <= max_price
 
 
-def score_vehicle(vehicle, preference):
-    # 차량 한 대의 추천 점수와 추천 이유를 계산
-    score = 0
-    reasons = []
-
-    # 예산을 통과한 차량만 이 함수로 들어옴
-    score += 3
-    reasons.append("예산 적합")
-
-    # 사용자가 선호 차종을 선택한 경우에만 점수를 추가
+def matches_body_type(vehicle, preference):
     selected_body_types = preference.get("bodyTypes", [])
-    if selected_body_types and vehicle.get("bodyType") in selected_body_types:
-        score += 2
-        reasons.append("선호 차종 일치")
 
-    # 동력 방식은 '마일드 하이브리드'처럼 추가 단어가 있을 수 있으므로
-    # 완전 일치 대신 포함 여부를 확인
+    # 차종을 선택하지 않았다면 모든 차종을 허용
+    if not selected_body_types:
+        return True
+
+    # 여러 차종을 선택했다면 그중 하나와 일치하면 통과
+    return vehicle.get("bodyType") in selected_body_types
+
+
+def matches_powertrain(vehicle, preference):
     selected_powertrains = preference.get("powertrains", [])
     vehicle_powertrain = vehicle.get("powertrain", "")
 
-    if selected_powertrains and any(
-        selected in vehicle_powertrain
-        for selected in selected_powertrains
-    ):
-        score += 2
+    # 동력 방식을 선택하지 않았다면 모든 동력 방식을 허용
+    if not selected_powertrains:
+        return True
+
+    # 예: "가솔린" 선택 시 "가솔린 하이브리드"도 포함할 수 있도록 포함 여부 확인
+    return any(
+        selected_powertrain in vehicle_powertrain
+        for selected_powertrain in selected_powertrains
+    )
+
+
+def matches_origin(vehicle, preference):
+    selected_origins = preference.get("origins", [])
+
+    # 국산·수입을 선택하지 않았다면 모두 허용
+    if not selected_origins:
+        return True
+
+    return vehicle.get("origin") in selected_origins
+
+
+def matches_features(vehicle, preference):
+    selected_features = preference.get("features", [])
+    vehicle_features = vehicle.get("features", [])
+
+    # 원하는 기능을 선택하지 않았다면 모두 허용
+    if not selected_features:
+        return True
+
+    # 기능을 여러 개 선택했다면 모두 있어야 통과
+    return all(
+        selected_feature in vehicle_features
+        for selected_feature in selected_features
+    )
+
+
+def matches_required_conditions(vehicle, preference):
+    # 선택한 조건은 점수가 아니라 "통과 또는 탈락" 기준으로 사용
+    return (
+        is_within_budget(vehicle, preference)
+        and matches_body_type(vehicle, preference)
+        and matches_powertrain(vehicle, preference)
+        and matches_origin(vehicle, preference)
+        and matches_features(vehicle, preference)
+    )
+
+
+def score_vehicle(vehicle, preference):
+    # 이 함수에 들어온 차량은 이미 필수 조건을 모두 통과한 상태
+    reasons = ["예산 범위 일치"]
+
+    if preference.get("bodyTypes"):
+        reasons.append("선호 차종 일치")
+
+    if preference.get("powertrains"):
         reasons.append("동력 방식 일치")
 
-    # 국산·수입 선호를 확인
-    selected_origins = preference.get("origins", [])
-    if selected_origins and vehicle.get("origin") in selected_origins:
-        score += 1
+    if preference.get("origins"):
         reasons.append("국산·수입 선택 일치")
 
-    # 원본 vehicle 딕셔너리를 직접 수정하지 않도록 복사
+    if preference.get("features"):
+        reasons.append("필수 기능 일치")
+
+    # 원본 데이터를 직접 변경하지 않도록 복사
     result = vehicle.copy()
 
-    # 계산 결과를 복사본에 추가
-    result["score"] = score
+    # 일치한 조건 수를 점수로 사용
+    result["score"] = len(reasons)
     result["reasons"] = reasons
 
     return result
 
 
 def rank_vehicles(vehicles, preference):
-    # 1. 예산에 맞는 차량만 남김
-    budget_vehicles = [
+    # 1. 사용자가 선택한 필수 조건을 모두 통과한 차량만 남김
+    matched_vehicles = [
         vehicle
         for vehicle in vehicles
-        if is_within_budget(vehicle, preference)
+        if matches_required_conditions(vehicle, preference)
     ]
 
-    # 2. 각 차량의 점수와 이유를 계산
+    # 2. 추천 근거와 점수를 추가
     scored_vehicles = [
         score_vehicle(vehicle, preference)
-        for vehicle in budget_vehicles
+        for vehicle in matched_vehicles
     ]
 
-    # 3. score가 큰 차량이 앞에 오도록 정렬
+    # 3. 조건 일치 점수가 같으면 시작 가격이 낮은 차량을 먼저 보여줌
     return sorted(
         scored_vehicles,
-        key=lambda vehicle: vehicle["score"],
-        reverse=True,
+        key=lambda vehicle: (
+            -vehicle["score"],
+            vehicle.get("priceFrom", float("inf")),
+        ),
     )

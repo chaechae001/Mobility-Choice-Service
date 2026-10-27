@@ -89,7 +89,7 @@ async def preview_recommendations(
     # ranking_service는 preference["minBudget"]처럼 딕셔너리 문법을 사용
     preference_data = preference.model_dump()
 
-    # 3. 예산 필터와 조건별 점수를 계산해 높은 점수 순으로 정렬
+    # 3. 필수 조건을 모두 만족한 후보를 가격 오름차순으로 정렬
     ranked_vehicles = rank_vehicles(
         vehicles, 
         preference_data
@@ -211,7 +211,7 @@ async def stream_recommendations(
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Contrl": "no-cache",
+            "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         }
     )
