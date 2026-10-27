@@ -41,3 +41,16 @@ Thumbs.db
 
 # Local model cache
 **/model-cache/
+
+# Personal working notes stay local; README is a portfolio presentation.
+**/AGENTS.md
+**/HANDOFF*.md
+**/PROJECT_STATUS.md
+**/VERIFICATION.md
+**/PORTFOLIO_UPDATE.md
+/notebooks/local/
+/AGENTS.md
+/docs/HANDOFF.md
+/docs/PORTFOLIO_UPDATE.md
+/docs/PROJECT_STATUS.md
+/docs/VERIFICATION.md
