@@ -1,3 +1,5 @@
+> **2026-10-27 업데이트**: Express·MongoDB·Next.js 기반 차량 탐색에 FastAPI·Ollama 추천 설명/SSE 스트리밍을 추가한 작업 브랜치를 정리했습니다. 필수 조건 필터와 가격 정렬을 반영했으며, 라이프스타일·우선순위 기반 랭킹은 후속 구현 항목입니다. 최신 [진행 현황](docs/PROJECT_STATUS.md) · [실행·인수인계](docs/HANDOFF.md) · [검증 결과](docs/VERIFICATION.md)를 먼저 확인하세요.
+
 <div align="center">
 
 # MOBILITY CHOICE
